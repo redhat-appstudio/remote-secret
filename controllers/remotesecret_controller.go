@@ -44,7 +44,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var (
@@ -80,11 +79,11 @@ func (r *RemoteSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&api.RemoteSecret{}).
-		Watches(&source.Kind{Type: &corev1.Secret{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
-			return linksToReconcileRequests(mgr.GetLogger(), mgr.GetScheme(), o)
+		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
+			return linksToReconcileRequests(ctx, mgr.GetScheme(), o)
 		})).
-		Watches(&source.Kind{Type: &corev1.ServiceAccount{}}, handler.EnqueueRequestsFromMapFunc(func(o client.Object) []reconcile.Request {
-			return linksToReconcileRequests(mgr.GetLogger(), mgr.GetScheme(), o)
+		Watches(&corev1.ServiceAccount{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, o client.Object) []reconcile.Request {
+			return linksToReconcileRequests(ctx, mgr.GetScheme(), o)
 		})).
 		Complete(r)
 	if err != nil {
@@ -93,10 +92,10 @@ func (r *RemoteSecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-func linksToReconcileRequests(lg logr.Logger, scheme *runtime.Scheme, o client.Object) []reconcile.Request {
+func linksToReconcileRequests(ctx context.Context, scheme *runtime.Scheme, o client.Object) []reconcile.Request {
 	nsMarker := namespacetarget.NamespaceObjectMarker{}
-
-	refs, err := nsMarker.GetReferencingTargets(context.Background(), o)
+	lg := log.FromContext(ctx)
+	refs, err := nsMarker.GetReferencingTargets(ctx, o)
 	if err != nil {
 		var gvk schema.GroupVersionKind
 		gvks, _, _ := scheme.ObjectKinds(o)
